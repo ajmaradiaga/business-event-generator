@@ -1,6 +1,6 @@
 import '@ui5/webcomponents/dist/Panel.js';
 import '@ui5/webcomponents/dist/List.js';
-import '@ui5/webcomponents/dist/StandardListItem.js';
+import '@ui5/webcomponents/dist/ListItemStandard.js';
 import '@ui5/webcomponents/dist/Button.js';
 import type { StreamEntry } from '../config/types.js';
 

@@ -1,0 +1,23 @@
+:root {
+  --sap-bg: #f5f6f7;
+  --sap-panel-gap: 1rem;
+}
+
+body {
+  background: var(--sap-bg);
+  margin: 0;
+  font-family: "72", "72full", Arial, Helvetica, sans-serif;
+}
+
+.app-panels {
+  display: flex;
+  gap: var(--sap-panel-gap);
+  padding: var(--sap-panel-gap);
+  align-items: flex-start;
+}
+
+@media (max-width: 768px) {
+  .app-panels {
+    flex-direction: column;
+  }
+}

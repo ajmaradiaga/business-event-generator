@@ -1,6 +1,6 @@
 import '@ui5/webcomponents/dist/Panel.js';
 import '@ui5/webcomponents/dist/Input.js';
-import '@ui5/webcomponents/dist/PasswordInput.js';
+// PasswordInput was removed in @ui5/webcomponents v2; use Input with type="Password" instead
 import '@ui5/webcomponents/dist/Button.js';
 import '@ui5/webcomponents/dist/Select.js';
 import '@ui5/webcomponents/dist/Option.js';
@@ -45,7 +45,7 @@ export class BrokerPanel {
           </div>
           <div>
             <ui5-label for="bp-pass" required>Password</ui5-label>
-            <ui5-password-input id="bp-pass" style="width: 100%;"></ui5-password-input>
+            <ui5-input id="bp-pass" type="Password" style="width: 100%;"></ui5-input>
           </div>
           <div style="display: flex; gap: 0.5rem;">
             <ui5-button id="connect-btn" design="Emphasized">Connect</ui5-button>
