@@ -1,4 +1,4 @@
-import type { EventConfig } from '../config/types.js';
+import type { CloudEvent, EventConfig } from '../config/types.js';
 
 export function resolveTopic(template: string, record: Record<string, unknown>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, fieldName: string) => {
@@ -28,10 +28,8 @@ export function resolveTopic(template: string, record: Record<string, unknown>):
 
 export function build(
   filteredData: Record<string, unknown>,
-  eventConfig: EventConfig,
-  resolvedTopic: string
-): Record<string, unknown> {
-  void resolvedTopic; // topic used by caller for publish; kept in signature for interface symmetry
+  eventConfig: EventConfig
+): CloudEvent {
   return {
     specversion: '1.0',
     type: eventConfig.type,

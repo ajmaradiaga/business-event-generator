@@ -50,7 +50,7 @@ const filteredData = {
 
 describe('build', () => {
   it('returns a valid CloudEvent envelope', () => {
-    const ce = build(filteredData, eventConfig, 'sap/s4/custom/BusinessPartner/Created/MX/1003769');
+    const ce = build(filteredData, eventConfig);
     expect(ce.specversion).toBe('1.0');
     expect(ce.type).toBe('sap.s4.custom.BusinessPartner.Created');
     expect(ce.source).toBe('/sap/s4/erp/business-partner');
@@ -60,8 +60,8 @@ describe('build', () => {
   });
 
   it('generates a fresh UUID id each call', () => {
-    const a = build(filteredData, eventConfig, 'topic');
-    const b = build(filteredData, eventConfig, 'topic');
+    const a = build(filteredData, eventConfig);
+    const b = build(filteredData, eventConfig);
     expect(a.id).not.toBe(b.id);
     expect(typeof a.id).toBe('string');
     expect(a.id.length).toBeGreaterThan(10);
@@ -69,7 +69,7 @@ describe('build', () => {
 
   it('sets time to current ISO timestamp', () => {
     const before = Date.now();
-    const ce = build(filteredData, eventConfig, 'topic');
+    const ce = build(filteredData, eventConfig);
     const after = Date.now();
     const ts = new Date(ce.time as string).getTime();
     expect(ts).toBeGreaterThanOrEqual(before);

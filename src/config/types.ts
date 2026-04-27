@@ -30,3 +30,14 @@ export interface StreamEntry {
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+
+export interface CloudEvent {
+  specversion: '1.0';
+  type: string;
+  source: string;
+  id: string;
+  time: string;
+  datacontenttype: 'application/json';
+  subject: string;
+  data: Record<string, unknown>;
+}
