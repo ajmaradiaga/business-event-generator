@@ -2,7 +2,9 @@ import * as solace from 'solclientjs';
 import type { BrokerParams, ConnectionStatus } from '../config/types.js';
 
 export class SolaceClient {
+  private static _factoryInitialized = false;
   private session: solace.Session | null = null;
+  private _connected = false;
   private statusCb: ((s: ConnectionStatus) => void) | null = null;
 
   onStatusChange(cb: (status: ConnectionStatus) => void): void {
@@ -15,12 +17,11 @@ export class SolaceClient {
 
   connect(params: BrokerParams): Promise<void> {
     return new Promise((resolve, reject) => {
-      try {
+      if (!SolaceClient._factoryInitialized) {
         const props = new solace.SolclientFactoryProperties();
         props.profile = solace.SolclientFactoryProfiles.version10_5;
         solace.SolclientFactory.init(props);
-      } catch {
-        // Already initialized
+        SolaceClient._factoryInitialized = true;
       }
 
       this.emit('connecting');
@@ -33,17 +34,20 @@ export class SolaceClient {
       });
 
       this.session.on(solace.SessionEventCode.UP_NOTICE, () => {
+        this._connected = true;
         this.emit('connected');
         resolve();
       });
 
       this.session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, (e: unknown) => {
+        this._connected = false;
         this.emit('error');
         const infoStr = (e as { infoStr?: string } | undefined)?.infoStr;
         reject(new Error(infoStr ?? 'Connection failed'));
       });
 
       this.session.on(solace.SessionEventCode.DISCONNECTED, () => {
+        this._connected = false;
         this.emit('disconnected');
       });
 
@@ -57,7 +61,7 @@ export class SolaceClient {
   }
 
   publish(topic: string, payload: string): void {
-    if (!this.session) throw new Error('Not connected');
+    if (!this.session || !this._connected) throw new Error('Not connected');
     const msg = solace.SolclientFactory.createMessage();
     msg.setDestination(solace.SolclientFactory.createTopicDestination(topic));
     msg.setBinaryAttachment(payload);
@@ -66,7 +70,8 @@ export class SolaceClient {
   }
 
   disconnect(): void {
-    this.session?.disconnect();
+    this._connected = false;
+    this.session?.disconnect(); // DISCONNECTED event fires asynchronously after this returns
     this.session = null;
   }
 }
