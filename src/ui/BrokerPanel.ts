@@ -11,6 +11,7 @@ import type { EventConfig, BrokerParams, ConnectionStatus } from '../config/type
 export class BrokerPanel {
   readonly element: HTMLElement;
   private currentRate = 10;
+  private _connected = false;
 
   onConnect: ((params: BrokerParams) => void) | null = null;
   onDisconnect: (() => void) | null = null;
@@ -131,22 +132,27 @@ export class BrokerPanel {
       disconnected: '○ Disconnected',
       error: '✕ Connection error',
     };
-    badge.innerHTML = `<span style="color: ${colorMap[status]}; font-size: 0.875rem;">${labelMap[status]}</span>`;
+    badge.innerHTML = '';
+    const span = document.createElement('span');
+    span.style.color = colorMap[status];
+    span.style.fontSize = '0.875rem';
+    span.textContent = labelMap[status];
+    badge.appendChild(span);
 
     const connectBtn = this.element.querySelector('#connect-btn') as HTMLElement;
     const disconnectBtn = this.element.querySelector('#disconnect-btn') as HTMLElement;
     const startBtn = this.element.querySelector('#start-btn') as HTMLElement;
 
-    const connected = status === 'connected';
-    connectBtn.toggleAttribute('disabled', connected);
-    disconnectBtn.toggleAttribute('disabled', !connected);
-    startBtn.toggleAttribute('disabled', !connected);
+    this._connected = status === 'connected';
+    connectBtn.toggleAttribute('disabled', this._connected);
+    disconnectBtn.toggleAttribute('disabled', !this._connected);
+    startBtn.toggleAttribute('disabled', !this._connected);
   }
 
   setPublishing(active: boolean): void {
     const startBtn = this.element.querySelector('#start-btn') as HTMLElement;
     const stopBtn = this.element.querySelector('#stop-btn') as HTMLElement;
-    startBtn.toggleAttribute('disabled', active);
+    startBtn.toggleAttribute('disabled', active || !this._connected);
     stopBtn.toggleAttribute('disabled', !active);
   }
 }
