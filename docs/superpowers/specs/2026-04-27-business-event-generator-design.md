@@ -85,9 +85,9 @@ Adding a new event type: add an entry + drop a JSON data file under `public/even
 ```yaml
 events:
   - id: business-partner-created
-    type: sap.s4.beh.businesspartner.v1.BusinessPartner.Created.v1
+    type: sap.s4.custom.BusinessPartner.Created
     source: /sap/s4/erp/business-partner
-    topic: sap/s4/beh/businesspartner/v1/BusinessPartner/Created/v1
+    topic: sap/s4/custom/BusinessPartner/Created/{{Country}}/{{BusinessPartner}}
     dataFile: /events/data/business-partners.json
     subjectField: BusinessPartner
     fields:
@@ -142,7 +142,7 @@ Each publish: pick a random record from the data array, apply field whitelist fr
 ```json
 {
   "specversion": "1.0",
-  "type": "sap.s4.beh.businesspartner.v1.BusinessPartner.Created.v1",
+  "type": "sap.s4.custom.BusinessPartner.Created",
   "source": "/sap/s4/erp/business-partner",
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "time": "2026-04-27T10:30:00.000Z",
@@ -260,13 +260,32 @@ Start/Stop disabled when not connected. Connect/Disconnect toggle based on statu
 
 ---
 
+## Dynamic Topic Resolution
+
+Topic strings may contain `{{FieldName}}` placeholders that are replaced with values from the selected record before publishing.
+
+Resolution order per placeholder:
+
+1. Root fields (e.g. `{{BusinessPartner}}` → `record.BusinessPartner`)
+2. First nav prop result fields (e.g. `{{Country}}` → `record.to_BusinessPartnerAddress.results[0].Country`)
+
+If a placeholder resolves to an empty string or null, it is replaced with `_` to keep the topic valid.
+
+Example: `sap/s4/custom/BusinessPartner/Created/{{Country}}/{{BusinessPartner}}`  
+→ `sap/s4/custom/BusinessPartner/Created/MX/1003769`
+
+Resolution is implemented in `CloudEventBuilder.resolveTopic(template, record)`.
+
+---
+
 ## Data Pipeline (per publish tick)
 
 1. `DataSampler.pick(records)` — random index into BP array
-2. `DataSampler.filter(record, fieldMap)` — apply root + nav prop whitelists
-3. `CloudEventBuilder.build(filtered, eventConfig)` — wrap in CE envelope with fresh `id` + `time`
-4. `SolaceClient.publish(topic, JSON.stringify(cloudEvent))`
-5. `StreamPanel.append(entry)` — add to live list (cap at 50 entries)
+2. `DataSampler.filter(record, fieldMap)` — apply root + nav prop whitelists → `filteredData`
+3. `CloudEventBuilder.resolveTopic(template, record)` — interpolate `{{field}}` placeholders → `resolvedTopic`
+4. `CloudEventBuilder.build(filteredData, eventConfig, resolvedTopic)` — wrap in CE envelope with fresh `id` + `time`
+5. `SolaceClient.publish(resolvedTopic, JSON.stringify(cloudEvent))`
+6. `StreamPanel.append(entry)` — add to live list (cap at 50 entries)
 
 ---
 
