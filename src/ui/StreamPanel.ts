@@ -41,11 +41,11 @@ export class StreamPanel {
   }
 
   append(entry: StreamEntry): void {
-    this.entries.push(entry);
-    if (this.entries.length > MAX_ENTRIES) {
+    if (this.entries.length >= MAX_ENTRIES) {
       this.entries.shift();
       this.listEl.firstElementChild?.remove();
     }
+    this.entries.push(entry);
 
     this.sentCount++;
     const item = document.createElement('ui5-li');
