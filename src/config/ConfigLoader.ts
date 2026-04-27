@@ -11,6 +11,9 @@ export async function loadConfig(base = ''): Promise<LoadedConfig> {
   if (!yamlRes.ok) throw new Error(`Failed to fetch config: ${yamlRes.status}`);
   const yamlText = await yamlRes.text();
   const config = load(yamlText) as AppConfig;
+  if (!config || !Array.isArray(config.events)) {
+    throw new Error('config.yaml is malformed: missing or invalid "events" array');
+  }
 
   const records = new Map<string, unknown[]>();
   await Promise.all(
@@ -18,7 +21,10 @@ export async function loadConfig(base = ''): Promise<LoadedConfig> {
       const dataRes = await fetch(`${base}${event.dataFile}`);
       if (!dataRes.ok) throw new Error(`Failed to fetch ${event.dataFile}: ${dataRes.status}`);
       const raw = await dataRes.json();
-      records.set(event.id, Array.isArray(raw) ? raw : (raw.data ?? []));
+      if (!Array.isArray(raw)) {
+        throw new Error(`Data file ${event.dataFile} did not return a JSON array`);
+      }
+      records.set(event.id, raw);
     })
   );
 
