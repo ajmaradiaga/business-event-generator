@@ -1,0 +1,27 @@
+events:
+  - id: business-partner-created
+    type: sap.s4.custom.BusinessPartner.Created
+    source: /sap/s4/erp/business-partner
+    topic: sap/s4/custom/BusinessPartner/Created/{{Country}}/{{BusinessPartner}}
+    dataFile: /events/data/business-partners.json
+    subjectField: BusinessPartner
+    fields:
+      root:
+        - BusinessPartner
+        - BusinessPartnerUUID
+        - BusinessPartnerFullName
+        - BusinessPartnerCategory
+        - BusinessPartnerGrouping
+        - FirstName
+        - LastName
+        - IsNaturalPerson
+        - CreationDate
+        - CreatedByUser
+      to_BusinessPartnerAddress:
+        - Country
+        - Region
+        - CityName
+        - PostalCode
+        - StreetName
+        - HouseNumber
+        - AddressTimeZone
