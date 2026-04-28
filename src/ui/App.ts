@@ -3,24 +3,35 @@ import '../styles.css';
 import { BrokerPanel } from './BrokerPanel.js';
 import { StreamPanel } from './StreamPanel.js';
 import { SolaceClient } from '../broker/SolaceClient.js';
+import { EmisClient } from '../broker/EmisClient.js';
+import type { IPublisher } from '../broker/IPublisher.js';
 import { pick, filter } from '../generator/DataSampler.js';
 import { resolveTopic, build } from '../generator/CloudEventBuilder.js';
 import type { LoadedConfig } from '../config/ConfigLoader.js';
-import type { EventConfig } from '../config/types.js';
+import type { BrokerType, EventConfig } from '../config/types.js';
 
 export class App {
-  private broker: SolaceClient;
+  private aemBroker: SolaceClient;
+  private emisBroker: EmisClient;
   private brokerPanel: BrokerPanel;
   private streamPanel: StreamPanel;
-  private interval: ReturnType<typeof setInterval> | null = null;
-  private currentRate = 10;
-  private currentEventId: string;
   private config: LoadedConfig;
+
+  private aemInterval: ReturnType<typeof setInterval> | null = null;
+  private emisInterval: ReturnType<typeof setInterval> | null = null;
+
+  private aemRate = 10;
+  private emisRate = 10;
+  private aemEventId: string;
+  private emisEventId: string;
 
   constructor(container: HTMLElement, config: LoadedConfig) {
     this.config = config;
-    this.currentEventId = config.config.events[0].id;
-    this.broker = new SolaceClient();
+    this.aemEventId = config.config.events[0].id;
+    this.emisEventId = config.config.events[0].id;
+
+    this.aemBroker = new SolaceClient();
+    this.emisBroker = new EmisClient();
     this.brokerPanel = new BrokerPanel(config.config.events);
     this.streamPanel = new StreamPanel();
 
@@ -36,67 +47,137 @@ export class App {
     container.appendChild(shellBar);
     container.appendChild(panels);
 
-    this.broker.onStatusChange(status => {
+    this.wireAem();
+    this.wireEmis();
+  }
+
+  // ─── AEM wiring ─────────────────────────────────────────────────────────────
+
+  private wireAem(): void {
+    this.aemBroker.onStatusChange(status => {
       this.brokerPanel.setStatus(status);
       if (status === 'disconnected' || status === 'error') {
-        this.stopPublishing();
+        this.stopAem();
       }
     });
 
     this.brokerPanel.onConnect = async params => {
       try {
-        await this.broker.connect(params);
+        await this.aemBroker.connect(params);
       } catch (err) {
-        console.error('Connection failed:', err);
+        console.error('AEM connection failed:', err);
       }
     };
 
     this.brokerPanel.onDisconnect = () => {
-      this.stopPublishing();
-      this.broker.disconnect();
+      this.stopAem();
+      this.aemBroker.disconnect();
     };
 
     this.brokerPanel.onStart = rate => {
-      this.currentRate = rate;
-      this.startPublishing();
+      this.aemRate = rate;
+      this.startAem();
     };
 
-    this.brokerPanel.onStop = () => this.stopPublishing();
+    this.brokerPanel.onStop = () => this.stopAem();
 
     this.brokerPanel.onRateChange = rate => {
-      this.currentRate = rate;
-      if (this.interval !== null) {
-        this.stopPublishing();
-        this.startPublishing();
+      this.aemRate = rate;
+      if (this.aemInterval !== null) {
+        this.stopAem();
+        this.startAem();
       }
     };
 
     this.brokerPanel.onEventChange = eventId => {
-      this.currentEventId = eventId;
+      this.aemEventId = eventId;
     };
   }
 
-  private startPublishing(): void {
-    if (this.interval !== null) clearInterval(this.interval);
+  private startAem(): void {
+    if (this.aemInterval !== null) clearInterval(this.aemInterval);
     this.brokerPanel.setPublishing(true);
-    this.interval = setInterval(() => this.tick(), Math.floor(60000 / this.currentRate));
+    this.aemInterval = setInterval(
+      () => this.tick(this.aemBroker, 'aem', this.aemEventId, this.aemRate),
+      Math.floor(60000 / this.aemRate)
+    );
   }
 
-  private stopPublishing(): void {
-    if (this.interval !== null) {
-      clearInterval(this.interval);
-      this.interval = null;
+  private stopAem(): void {
+    if (this.aemInterval !== null) {
+      clearInterval(this.aemInterval);
+      this.aemInterval = null;
     }
     this.brokerPanel.setPublishing(false);
   }
 
-  private tick(): void {
-    const eventConfig = this.config.config.events.find(
-      (e: EventConfig) => e.id === this.currentEventId
+  // ─── EMIS wiring ────────────────────────────────────────────────────────────
+
+  private wireEmis(): void {
+    this.emisBroker.onStatusChange(status => {
+      this.brokerPanel.emis.setStatus(status);
+      if (status === 'disconnected' || status === 'error') {
+        this.stopEmis();
+      }
+    });
+
+    this.brokerPanel.emis.onAuthenticate = async serviceKeyJson => {
+      try {
+        await this.emisBroker.connect(serviceKeyJson);
+      } catch (err) {
+        console.error('EMIS authentication failed:', err);
+      }
+    };
+
+    this.brokerPanel.emis.onDisconnect = () => {
+      this.stopEmis();
+      this.emisBroker.disconnect();
+    };
+
+    this.brokerPanel.emis.onStart = rate => {
+      this.emisRate = rate;
+      this.startEmis();
+    };
+
+    this.brokerPanel.emis.onStop = () => this.stopEmis();
+
+    this.brokerPanel.emis.onRateChange = rate => {
+      this.emisRate = rate;
+      if (this.emisInterval !== null) {
+        this.stopEmis();
+        this.startEmis();
+      }
+    };
+
+    this.brokerPanel.emis.onEventChange = eventId => {
+      this.emisEventId = eventId;
+    };
+  }
+
+  private startEmis(): void {
+    if (this.emisInterval !== null) clearInterval(this.emisInterval);
+    this.brokerPanel.emis.setPublishing(true);
+    this.emisInterval = setInterval(
+      () => this.tick(this.emisBroker, 'emis', this.emisEventId, this.emisRate),
+      Math.floor(60000 / this.emisRate)
     );
+  }
+
+  private stopEmis(): void {
+    if (this.emisInterval !== null) {
+      clearInterval(this.emisInterval);
+      this.emisInterval = null;
+    }
+    this.brokerPanel.emis.setPublishing(false);
+  }
+
+  // ─── shared tick ────────────────────────────────────────────────────────────
+
+  private tick(broker: IPublisher, brokerType: BrokerType, eventId: string, _rate: number): void {
+    const eventConfig = this.config.config.events.find((e: EventConfig) => e.id === eventId);
     if (!eventConfig) return;
 
-    const records = this.config.records.get(this.currentEventId);
+    const records = this.config.records.get(eventId);
     if (!records?.length) return;
 
     const rawRecord = pick(records) as Record<string, unknown>;
@@ -105,10 +186,11 @@ export class App {
     const cloudEvent = build(filteredData, eventConfig);
 
     try {
-      this.broker.publish(topic, JSON.stringify(cloudEvent));
+      broker.publish(topic, JSON.stringify(cloudEvent));
     } catch (err) {
-      console.error('Publish failed:', err);
-      this.stopPublishing();
+      console.error(`${brokerType.toUpperCase()} publish failed:`, err);
+      if (brokerType === 'aem') this.stopAem();
+      else this.stopEmis();
       return;
     }
 
@@ -127,7 +209,7 @@ export class App {
       label: `${fullName}${country}`,
       detail: `BP: ${bpId} · ${timeStr}`,
       topic,
-      broker: 'aem',
+      broker: brokerType,
     });
   }
 }
