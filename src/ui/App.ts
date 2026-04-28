@@ -128,6 +128,7 @@ export class App {
       label: `${fullName}${country}`,
       detail: `BP: ${bpId} · ${timeStr}`,
       topic,
+      broker: 'aem',
     });
   }
 }

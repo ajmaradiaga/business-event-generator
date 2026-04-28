@@ -22,11 +22,26 @@ export interface BrokerParams {
   password: string;
 }
 
+export interface EmisServiceKey {
+  broker: { type: string };
+  oa2: {
+    clientid: string;
+    clientsecret: string;
+    tokenendpoint: string;
+    granttype: string;
+  };
+  protocol: string[];
+  uri: string;
+}
+
+export type BrokerType = 'aem' | 'emis';
+
 export interface StreamEntry {
   id: string;
   label: string;
   detail: string;
   topic: string;
+  broker: BrokerType;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
