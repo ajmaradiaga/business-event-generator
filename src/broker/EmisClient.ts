@@ -1,8 +1,18 @@
+import rhea from 'rhea';
+import * as ws from 'rhea/lib/ws';
 import type { IPublisher } from './IPublisher.js';
 import type { ConnectionStatus, EmisServiceKey } from '../config/types.js';
 
+type RheaConnection = {
+  on: (event: string, cb: (ctx: { connection: RheaConnection; error?: Error }) => void) => void;
+  open_sender: (opts: { target: { address: string } }) => { send: (msg: unknown) => void; detach: () => void };
+  close: () => void;
+};
+
 export class EmisClient implements IPublisher {
   private statusCb: ((s: ConnectionStatus) => void) | null = null;
+  private connection: RheaConnection | null = null;
+  private sender: { send: (msg: unknown) => void; detach: () => void } | null = null;
 
   onStatusChange(cb: (status: ConnectionStatus) => void): void {
     this.statusCb = cb;
@@ -28,8 +38,39 @@ export class EmisClient implements IPublisher {
 
     this.emit('connecting');
     const token = await this.fetchToken(key);
-    // rhea connect in Task 4
-    void token;
+
+    return new Promise((resolve, reject) => {
+      const container = rhea.create_container();
+      const wsFactory = ws.connect(WebSocket)(key.uri, ['amqp'], {});
+
+      const conn = container.connect({
+        connection_details: wsFactory as never,
+        username: key.oa2.clientid,
+        password: token,
+        sasl_mechanisms: 'PLAIN',
+      } as never) as unknown as RheaConnection;
+
+      this.connection = conn;
+
+      conn.on('connection_open', (ctx) => {
+        this.sender = ctx.connection.open_sender({ target: { address: '' } });
+        this.emit('connected');
+        resolve();
+      });
+
+      conn.on('connection_error', (ctx) => {
+        this.emit('error');
+        reject(ctx.error ?? new Error('AMQP connection error'));
+      });
+
+      conn.on('connection_close', () => {
+        this.emit('disconnected');
+      });
+
+      conn.on('disconnected', () => {
+        this.emit('disconnected');
+      });
+    });
   }
 
   private async fetchToken(key: EmisServiceKey): Promise<string> {
@@ -39,7 +80,7 @@ export class EmisClient implements IPublisher {
       response = await fetch(key.oa2.tokenendpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${credentials}`,
+          Authorization: `Basic ${credentials}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: 'grant_type=client_credentials',
@@ -55,15 +96,25 @@ export class EmisClient implements IPublisher {
       throw new Error(`Token fetch failed: ${response.status} ${body}`);
     }
 
-    const data = await response.json() as { access_token: string };
+    const data = (await response.json()) as { access_token: string };
     return data.access_token;
   }
 
-  publish(_topic: string, _payload: string): void {
-    // implemented in Task 4
+  publish(topic: string, payload: string): void {
+    if (!this.sender) throw new Error('Not connected');
+    this.sender.send({
+      body: payload,
+      properties: {
+        to: `topic:${topic}`,
+        content_type: 'application/cloudevents+json',
+      },
+    });
   }
 
   disconnect(): void {
-    // implemented in Task 4
+    this.sender?.detach();
+    this.sender = null;
+    this.connection?.close();
+    this.connection = null;
   }
 }
