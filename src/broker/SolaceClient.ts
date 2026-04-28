@@ -64,7 +64,7 @@ export class SolaceClient {
     if (!this.session || !this._connected) throw new Error('Not connected');
     const msg = solace.SolclientFactory.createMessage();
     msg.setDestination(solace.SolclientFactory.createTopicDestination(topic));
-    msg.setBinaryAttachment(payload);
+    msg.setBinaryAttachment(new TextEncoder().encode(payload));
     msg.setDeliveryMode(solace.MessageDeliveryModeType.DIRECT);
     this.session.send(msg);
   }
