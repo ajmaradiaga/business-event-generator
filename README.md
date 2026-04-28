@@ -1,5 +1,7 @@
 # Business Event Generator
 
+[![Built with Claude](https://img.shields.io/badge/Built%20with-Claude-blueviolet)](https://anthropic.com)
+
 A browser-based tool for publishing custom CloudEvents to two broker targets:
 
 - **AEM** – SAP Integration Suite Advanced Event Mesh (Solace AMQP over WebSocket)
