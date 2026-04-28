@@ -73,7 +73,7 @@ export default defineConfig({
     }),
     emisDevProxy(),
   ],
-  base: process.env.VITE_BASE_URL ?? '/business-event-generator/',
+  base: process.env.VITE_BASE_URL || '/business-event-generator/',
   optimizeDeps: {
     include: ['solclientjs'],
   },
