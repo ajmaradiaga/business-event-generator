@@ -1,180 +1,128 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EmisClient } from './EmisClient.js';
 import type { ConnectionStatus } from '../config/types.js';
-import rhea from 'rhea';
-import * as wsMod from 'rhea/lib/ws';
 
-const VALID_KEY = JSON.stringify({
-  broker: { type: 'sapmgw' },
+const SERVICE_KEY = JSON.stringify({
   oa2: {
     clientid: 'client-id',
     clientsecret: 'client-secret',
     tokenendpoint: 'https://auth.example.com/oauth/token',
     granttype: 'client_credentials',
   },
-  protocol: ['amqp10ws'],
-  uri: 'wss://emis.example.com',
+  protocol: ['httprest'],
+  broker: { type: 'saprestmgw' },
+  uri: 'https://emis.example.com:1443',
 });
 
-/** Flush all pending microtasks (Promise chains with multiple awaits) */
-const flushPromises = () => new Promise<void>(resolve => setTimeout(resolve, 0));
-
-// ─── rhea mock wiring ────────────────────────────────────────────────────────
-type Fn = (...args: unknown[]) => unknown;
-let mockConnHandlers: Record<string, Fn> = {};
-let mockSender: { send: ReturnType<typeof vi.fn>; detach: ReturnType<typeof vi.fn> };
-let mockConnection: {
-  on: ReturnType<typeof vi.fn>;
-  open_sender: ReturnType<typeof vi.fn>;
-  close: ReturnType<typeof vi.fn>;
-};
-let mockContainer: { connect: ReturnType<typeof vi.fn> };
-
-function resetRheaMocks() {
-  mockConnHandlers = {};
-  mockSender = { send: vi.fn(), detach: vi.fn() };
-  mockConnection = {
-    on: vi.fn().mockImplementation((event: string, cb: Fn) => { mockConnHandlers[event] = cb; }),
-    open_sender: vi.fn().mockReturnValue(mockSender),
-    close: vi.fn(),
-  };
-  mockContainer = { connect: vi.fn().mockReturnValue(mockConnection) };
-  // re-wire module mocks after vi.restoreAllMocks() clears vi.fn() implementations
-  vi.mocked(rhea.create_container).mockImplementation(() => mockContainer as never);
-  vi.mocked(wsMod.connect).mockReturnValue(vi.fn().mockReturnValue(vi.fn()));
+function stubTokenFetch(token = 'test-token') {
+  return vi.fn().mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ access_token: token }),
+  });
 }
 
-vi.mock('rhea', () => ({
-  default: { create_container: vi.fn() },
-}));
-
-vi.mock('rhea/lib/ws', () => ({
-  connect: vi.fn(),
-}));
-
-beforeEach(() => {
-  vi.restoreAllMocks();
-  resetRheaMocks();
-});
-
-describe('EmisClient — token fetch', () => {
-  it('emits error and rejects when service key JSON is invalid', async () => {
-    const { EmisClient } = await import('./EmisClient.js');
-    const client = new EmisClient();
-    const statuses: ConnectionStatus[] = [];
-    client.onStatusChange(s => statuses.push(s));
-
-    await expect(client.connect('not-valid-json')).rejects.toThrow();
-    expect(statuses).toContain('error');
-  });
-
-  it('emits error and rejects when token fetch fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
-
-    const { EmisClient } = await import('./EmisClient.js');
-    const client = new EmisClient();
-    const statuses: ConnectionStatus[] = [];
-    client.onStatusChange(s => statuses.push(s));
-
-    await expect(client.connect(VALID_KEY)).rejects.toThrow('Network error');
-    expect(statuses).toContain('error');
-  });
-
-  it('emits error and rejects when token endpoint returns non-ok', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: vi.fn().mockResolvedValue('Unauthorized'),
-    }));
-
-    const { EmisClient } = await import('./EmisClient.js');
-    const client = new EmisClient();
-    const statuses: ConnectionStatus[] = [];
-    client.onStatusChange(s => statuses.push(s));
-
-    await expect(client.connect(VALID_KEY)).rejects.toThrow();
-    expect(statuses).toContain('error');
-  });
-});
-
-describe('EmisClient — rhea connection', () => {
+describe('EmisClient', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ access_token: 'test-token' }),
-    }));
-    vi.stubGlobal('WebSocket', class {});
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it('emits connecting then connected on successful connect', async () => {
-    const { EmisClient } = await import('./EmisClient.js');
+    vi.stubGlobal('fetch', stubTokenFetch());
     const client = new EmisClient();
     const statuses: ConnectionStatus[] = [];
     client.onStatusChange(s => statuses.push(s));
 
-    const connectPromise = client.connect(VALID_KEY);
-    // flush microtasks so fetchToken resolves and conn.on() handlers register
-    await flushPromises();
-    // simulate rhea firing connection_open
-    mockConnHandlers['connection_open']?.({ connection: mockConnection });
-    await connectPromise;
+    await client.connect(SERVICE_KEY);
 
     expect(statuses).toEqual(['connecting', 'connected']);
-    expect(mockConnection.open_sender).toHaveBeenCalledWith({ target: { address: '' } });
   });
 
-  it('emits error and rejects when rhea fires connection_error', async () => {
-    const { EmisClient } = await import('./EmisClient.js');
+  it('emits error and throws when token fetch returns non-ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => 'Unauthorized',
+    }));
     const client = new EmisClient();
     const statuses: ConnectionStatus[] = [];
     client.onStatusChange(s => statuses.push(s));
 
-    const connectPromise = client.connect(VALID_KEY);
-    // flush microtasks so fetchToken resolves and conn.on() handlers register
-    await flushPromises();
-    mockConnHandlers['connection_error']?.({ error: new Error('AMQP rejected') });
-    await expect(connectPromise).rejects.toThrow();
+    await expect(client.connect(SERVICE_KEY)).rejects.toThrow('Token fetch failed: 401');
     expect(statuses).toContain('error');
   });
 
-  it('publish calls sender.send with topic and cloudevents content-type', async () => {
-    const { EmisClient } = await import('./EmisClient.js');
-    const client = new EmisClient();
-
-    const connectPromise = client.connect(VALID_KEY);
-    // flush microtasks so fetchToken resolves and conn.on() handlers register
-    await flushPromises();
-    mockConnHandlers['connection_open']?.({ connection: mockConnection });
-    await connectPromise;
-
-    client.publish('sap/s4/custom/BP/Created/DE/123', '{"specversion":"1.0"}');
-
-    expect(mockSender.send).toHaveBeenCalledWith({
-      body: '{"specversion":"1.0"}',
-      properties: {
-        to: 'topic:sap/s4/custom/BP/Created/DE/123',
-        content_type: 'application/cloudevents+json',
-      },
-    });
-  });
-
-  it('disconnect detaches sender and closes connection, emits disconnected', async () => {
-    const { EmisClient } = await import('./EmisClient.js');
+  it('emits error and rethrows when token fetch throws', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('Network error')));
     const client = new EmisClient();
     const statuses: ConnectionStatus[] = [];
     client.onStatusChange(s => statuses.push(s));
 
-    const connectPromise = client.connect(VALID_KEY);
-    // flush microtasks so fetchToken resolves and conn.on() handlers register
-    await flushPromises();
-    mockConnHandlers['connection_open']?.({ connection: mockConnection });
-    await connectPromise;
+    await expect(client.connect(SERVICE_KEY)).rejects.toThrow('Network error');
+    expect(statuses).toContain('error');
+  });
+
+  it('emits error and throws on invalid service key JSON', async () => {
+    const client = new EmisClient();
+    const statuses: ConnectionStatus[] = [];
+    client.onStatusChange(s => statuses.push(s));
+
+    await expect(client.connect('not-json')).rejects.toThrow('Invalid service key JSON');
+    expect(statuses).toContain('error');
+  });
+
+  it('publish POSTs with bearer token and cloudevents content type', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'tok' }) })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new EmisClient();
+    await client.connect(SERVICE_KEY);
+    client.publish('my/topic', '{"hello":"world"}');
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [url, init] = mockFetch.mock.calls[1] as [string, RequestInit & { headers: Record<string, string> }];
+    // In DEV mode the URL is /emis-proxy?target=<encoded-url>; get() already decodes once
+    const target = url.startsWith('/emis-proxy')
+      ? (new URLSearchParams(url.split('?')[1]).get('target') ?? '')
+      : url;
+    expect(target).toContain('my%2Ftopic');
+    expect(target).toContain('emis.example.com');
+    expect(init.method).toBe('POST');
+    expect(init.headers['Authorization']).toBe('Bearer tok');
+    expect(init.headers['Content-Type']).toBe('application/cloudevents+json');
+    expect(init.body).toBe('{"hello":"world"}');
+  });
+
+  it('emits error on 401 publish response (token expired)', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'tok' }) })
+      .mockResolvedValueOnce({ ok: false, status: 401 });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const client = new EmisClient();
+    const statuses: ConnectionStatus[] = [];
+    client.onStatusChange(s => statuses.push(s));
+    await client.connect(SERVICE_KEY);
+
+    client.publish('topic', '{}');
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(statuses).toContain('error');
+  });
+
+  it('disconnect emits disconnected and publish throws afterwards', async () => {
+    vi.stubGlobal('fetch', stubTokenFetch());
+    const client = new EmisClient();
+    const statuses: ConnectionStatus[] = [];
+    client.onStatusChange(s => statuses.push(s));
+    await client.connect(SERVICE_KEY);
 
     client.disconnect();
-    // simulate connection_close from rhea
-    mockConnHandlers['connection_close']?.();
 
-    expect(mockSender.detach).toHaveBeenCalled();
-    expect(mockConnection.close).toHaveBeenCalled();
     expect(statuses).toContain('disconnected');
+    expect(() => client.publish('topic', '{}')).toThrow('Not connected');
   });
 });

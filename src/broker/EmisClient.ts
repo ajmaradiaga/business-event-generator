@@ -1,18 +1,10 @@
-import rhea from 'rhea';
-import * as ws from 'rhea/lib/ws';
 import type { IPublisher } from './IPublisher.js';
 import type { ConnectionStatus, EmisServiceKey } from '../config/types.js';
 
-type RheaConnection = {
-  on: (event: string, cb: (ctx: { connection: RheaConnection; error?: Error }) => void) => void;
-  open_sender: (opts: { target: { address: string } }) => { send: (msg: unknown) => void; detach: () => void };
-  close: () => void;
-};
-
 export class EmisClient implements IPublisher {
   private statusCb: ((s: ConnectionStatus) => void) | null = null;
-  private connection: RheaConnection | null = null;
-  private sender: { send: (msg: unknown) => void; detach: () => void } | null = null;
+  private token: string | null = null;
+  private baseUrl: string | null = null;
 
   onStatusChange(cb: (status: ConnectionStatus) => void): void {
     this.statusCb = cb;
@@ -38,35 +30,9 @@ export class EmisClient implements IPublisher {
 
     this.emit('connecting');
     const token = await this.fetchToken(key);
-
-    return new Promise((resolve, reject) => {
-      const container = rhea.create_container();
-      const wsFactory = ws.connect(WebSocket)(key.uri, ['amqp'], {});
-
-      const conn = container.connect({
-        connection_details: wsFactory as never,
-        username: key.oa2.clientid,
-        password: token,
-        sasl_mechanisms: 'PLAIN',
-      } as never) as unknown as RheaConnection;
-
-      this.connection = conn;
-
-      conn.on('connection_open', (ctx) => {
-        this.sender = ctx.connection.open_sender({ target: { address: '' } });
-        this.emit('connected');
-        resolve();
-      });
-
-      conn.on('connection_error', (ctx) => {
-        this.emit('error');
-        reject(ctx.error ?? new Error('AMQP connection error'));
-      });
-
-      conn.on('connection_close', () => {
-        this.emit('disconnected');
-      });
-    });
+    this.token = token;
+    this.baseUrl = key.uri;
+    this.emit('connected');
   }
 
   private async fetchToken(key: EmisServiceKey): Promise<string> {
@@ -97,20 +63,35 @@ export class EmisClient implements IPublisher {
   }
 
   publish(topic: string, payload: string): void {
-    if (!this.sender) throw new Error('Not connected');
-    this.sender.send({
-      body: payload,
-      properties: {
-        to: `topic:${topic}`,
-        content_type: 'application/cloudevents+json',
+    if (!this.token || !this.baseUrl) throw new Error('Not connected');
+
+    const targetUrl = `${this.baseUrl}/messagingrest/v1/topics/${encodeURIComponent(topic)}/messages`;
+    // In dev mode, route through the local Vite proxy to avoid CORS
+    const url = import.meta.env.DEV
+      ? `/emis-proxy?target=${encodeURIComponent(targetUrl)}`
+      : targetUrl;
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        'Content-Type': 'application/cloudevents+json',
+        'x-qos': '0',
       },
+      body: payload,
+    }).then(res => {
+      if (res.status === 401) {
+        this.token = null;
+        this.emit('error');
+      }
+    }).catch(err => {
+      console.error('[EmisClient] publish error:', err);
     });
   }
 
   disconnect(): void {
-    this.sender?.detach();
-    this.sender = null;
-    this.connection?.close();
-    this.connection = null;
+    this.token = null;
+    this.baseUrl = null;
+    this.emit('disconnected');
   }
 }
