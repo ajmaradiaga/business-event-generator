@@ -5,7 +5,7 @@ async function bootstrap(): Promise<void> {
   const container = document.getElementById('app');
   if (!container) throw new Error('#app element not found');
 
-  const config = await loadConfig();
+  const config = await loadConfig(import.meta.env.BASE_URL.replace(/\/$/, ''));
   new App(container, config);
 }
 
