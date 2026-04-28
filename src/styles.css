@@ -21,3 +21,26 @@ body {
     flex-direction: column;
   }
 }
+
+.broker-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5);
+}
+
+.broker-tab {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: "72", "72full", Arial, Helvetica, sans-serif;
+  font-size: 0.875rem;
+  color: var(--sapContent_LabelColor, #6a6d70);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.broker-tab.active {
+  color: var(--sapHighlightColor, #0070f3);
+  border-bottom-color: var(--sapHighlightColor, #0070f3);
+  font-weight: 600;
+}
