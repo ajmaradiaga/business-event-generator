@@ -1,7 +1,8 @@
 import * as solace from 'solclientjs';
 import type { BrokerParams, ConnectionStatus } from '../config/types.js';
+import type { IPublisher } from './IPublisher.js';
 
-export class SolaceClient {
+export class SolaceClient implements IPublisher {
   private static _factoryInitialized = false;
   private session: solace.Session | null = null;
   private _connected = false;
