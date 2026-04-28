@@ -44,3 +44,27 @@ body {
   border-bottom-color: var(--sapHighlightColor, #0070f3);
   font-weight: 600;
 }
+
+.stream-filter {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5);
+}
+
+.stream-filter-btn {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--sapList_BorderColor, #e5e5e5);
+  border-radius: 0.25rem;
+  background: none;
+  cursor: pointer;
+  font-family: "72", "72full", Arial, Helvetica, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--sapContent_LabelColor, #6a6d70);
+}
+
+.stream-filter-btn.active {
+  background: var(--sapHighlightColor, #0070f3);
+  border-color: var(--sapHighlightColor, #0070f3);
+  color: #fff;
+}

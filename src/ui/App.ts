@@ -65,7 +65,6 @@ export class App {
 
     this.brokerPanel.onRateChange = rate => {
       this.currentRate = rate;
-      this.streamPanel.updateRate(rate);
       if (this.interval !== null) {
         this.stopPublishing();
         this.startPublishing();
