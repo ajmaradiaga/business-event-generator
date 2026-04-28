@@ -66,10 +66,6 @@ export class EmisClient implements IPublisher {
       conn.on('connection_close', () => {
         this.emit('disconnected');
       });
-
-      conn.on('disconnected', () => {
-        this.emit('disconnected');
-      });
     });
   }
 
