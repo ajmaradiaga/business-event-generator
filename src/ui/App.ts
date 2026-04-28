@@ -26,7 +26,7 @@ export class App {
 
     const shellBar = document.createElement('ui5-shellbar');
     shellBar.setAttribute('primary-title', 'Business Event Generator');
-    shellBar.setAttribute('secondary-title', 'SAP Event Mesh Demo');
+    shellBar.setAttribute('secondary-title', 'Demo');
 
     const panels = document.createElement('div');
     panels.className = 'app-panels';
