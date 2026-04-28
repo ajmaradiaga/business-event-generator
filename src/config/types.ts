@@ -23,7 +23,7 @@ export interface BrokerParams {
 }
 
 export interface EmisServiceKey {
-  broker: { type: string };
+  broker: { type: BrokerType };
   oa2: {
     clientid: string;
     clientsecret: string;

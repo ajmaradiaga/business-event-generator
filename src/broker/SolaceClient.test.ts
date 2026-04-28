@@ -101,7 +101,7 @@ describe('SolaceClient', () => {
     client.publish('test/topic', '{"hello":"world"}');
 
     expect(mockMessage.setDestination).toHaveBeenCalled();
-    expect(mockMessage.setBinaryAttachment).toHaveBeenCalledWith('{"hello":"world"}');
+    expect(mockMessage.setBinaryAttachment).toHaveBeenCalledWith(new TextEncoder().encode('{"hello":"world"}'));
     expect(mockSession.send).toHaveBeenCalledWith(mockMessage);
   });
 
