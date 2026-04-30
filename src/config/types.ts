@@ -42,6 +42,7 @@ export interface StreamEntry {
   detail: string;
   topic: string;
   broker: BrokerType;
+  payload: string;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
