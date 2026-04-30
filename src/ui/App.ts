@@ -185,8 +185,9 @@ export class App {
     const topic = resolveTopic(eventConfig.topic, rawRecord);
     const cloudEvent = build(filteredData, eventConfig);
 
+    const payloadStr = JSON.stringify(cloudEvent);
     try {
-      broker.publish(topic, JSON.stringify(cloudEvent));
+      broker.publish(topic, payloadStr);
     } catch (err) {
       console.error(`${brokerType.toUpperCase()} publish failed:`, err);
       if (brokerType === 'aem') this.stopAem();
@@ -210,6 +211,7 @@ export class App {
       detail: `BP: ${bpId} · ${timeStr}`,
       topic,
       broker: brokerType,
+      payload: payloadStr,
     });
   }
 }
