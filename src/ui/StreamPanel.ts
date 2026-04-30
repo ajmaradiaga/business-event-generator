@@ -117,13 +117,20 @@ export class StreamPanel {
     const payloadPanel = item.querySelector('.stream-payload') as HTMLElement;
     const chevron = item.querySelector('.stream-chevron') as HTMLElement;
 
-    row.addEventListener('click', () => {
+    const toggleRow = () => {
       const expanded = payloadPanel.style.display !== 'none';
       payloadPanel.style.display = expanded ? 'none' : 'block';
       chevron.textContent = expanded ? '▸' : '▾';
       chevron.style.color = expanded
         ? 'var(--sapContent_LabelColor,#6a6d70)'
         : 'var(--sapLinkColor,#0a6ed1)';
+    };
+
+    row.addEventListener('click', toggleRow);
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('role', 'button');
+    row.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(); }
     });
 
     const copyBtn = item.querySelector('.stream-copy-btn') as HTMLButtonElement;

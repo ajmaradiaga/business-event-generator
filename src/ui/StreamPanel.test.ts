@@ -97,10 +97,15 @@ describe('StreamPanel', () => {
     expect(listEl.querySelector('.stream-topic')?.textContent).toBe('topic/aem');
   });
 
-  it('escapes HTML special characters in label and topic', () => {
-    panel.append(makeEntry({ label: '<script>alert(1)</script>', topic: 'a/b&c' }));
+  it('escapes HTML special characters in label, detail and topic', () => {
+    panel.append(makeEntry({
+      label: '<script>alert(1)</script>',
+      detail: '<img src=x onerror=alert(1)>',
+      topic: 'a/b&c',
+    }));
     const listEl = panel.element.querySelector('#stream-list') as HTMLElement;
     expect(listEl.innerHTML).not.toContain('<script>');
+    expect(listEl.innerHTML).not.toContain('<img');
     expect(listEl.querySelector('.stream-topic')?.textContent).toBe('a/b&c');
   });
 });
