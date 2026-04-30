@@ -1,6 +1,4 @@
 import '@ui5/webcomponents/dist/Panel.js';
-import '@ui5/webcomponents/dist/List.js';
-import '@ui5/webcomponents/dist/ListItemStandard.js';
 import '@ui5/webcomponents/dist/Button.js';
 import type { StreamEntry, BrokerType } from '../config/types.js';
 
@@ -145,7 +143,8 @@ export class StreamPanel {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private rerender(): void {
