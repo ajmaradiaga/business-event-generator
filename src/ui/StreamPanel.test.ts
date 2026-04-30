@@ -26,6 +26,7 @@ describe('StreamPanel', () => {
 
   afterEach(() => {
     panel.element.remove();
+    vi.mocked(navigator.clipboard.writeText).mockClear();
   });
 
   it('renders topic for appended entry', () => {
